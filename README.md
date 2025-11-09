@@ -1,21 +1,24 @@
-# MPR Soluciones — Plataforma Contable Integral
+# README.md — MPR Soluciones
 
-Este proyecto tiene como finalidad desarrollar una plataforma integral para **contadores y clientes en Venezuela**, compuesta por una aplicación móvil y un sitio web que comparten la misma lógica y servicios.
+# MPR Soluciones — Comprehensive Accounting Platform
 
-El objetivo principal es simplificar el flujo de trabajo contable mediante:
+This project aims to develop a full-featured platform for **accountants and clients in Venezuela**, consisting of a mobile application and a web app sharing the same logic and services.
 
-- Gestión y almacenamiento seguro de documentos.
-- Comunicación clara entre clientes y contadores.
-- Envío y recepción organizada de archivos.
-- Acceso rápido a información relevante para obligaciones fiscales.
+The main goal is to simplify the accounting workflow by:
 
-El proyecto crecerá por etapas, incorporando funciones y mejoras a medida que avance su desarrollo.
+- Secure management and storage of documents.
+- Clear communication between clients and accountants.
+- Organized sending and receiving of files.
+- Fast access to relevant information for tax obligations.
+- Full database auditing to comply with accounting standards.
+
+The project will grow in stages, adding features and improvements as development progresses.
 
 ---
 
-## 🛠️ Tecnologías utilizadas
+## 🛠️ Technologies Used
 
-### **Frontend (App y Web)**
+### **Frontend (App and Web)**
 
 - **Expo** (React Native)
 - **React Native Web**
@@ -27,12 +30,14 @@ El proyecto crecerá por etapas, incorporando funciones y mejoras a medida que a
 
 - **Vercel**
 - **Node.js**
-- **Google APIs (Sheets / Drive)**
+- **Supabase** (PostgreSQL, Auth, RLS)
+- **Database auditing via PL/pgSQL trigger function**
 
-### **Infraestructura / Servicios**
+### **Infrastructure / Services**
 
-- **Supabase** (Auth, DB, Storage, RLS)
-- **Dotenv + app.config.ts** (manejo profesional de variables)
-- **Git + GitHub** (control de versiones)
+- **Cloudflare R2** (document storage)
+- **Dotenv + app.config.ts** (professional environment variable management)
+- **Git + GitHub** (version control)
 
 ---
+
