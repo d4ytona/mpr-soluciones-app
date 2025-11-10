@@ -3,8 +3,9 @@
 -- Description: Creates a generic audit log table for tracking
 --              INSERT, UPDATE, and DELETE operations on tables.
 -- ============================================================
+DROP TABLE IF EXISTS public.audit_log
 
-CREATE TABLE IF NOT EXISTS audit_log (
+CREATE TABLE IF NOT EXISTS public.audit_log (
     id BIGSERIAL PRIMARY KEY,                       -- Unique identifier for each audit entry
     table_name TEXT NOT NULL,                       -- Name of the table where the operation occurred
     record_id TEXT NOT NULL,                        -- ID of the affected row (cast to text for generality)

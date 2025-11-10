@@ -40,7 +40,12 @@
 
   - Created `users` table with fields: `auth_id`, `first_name`, `last_name`, `email`, `role`, `profile_photo_url`, `phone`, `birth_date`, `id_number`, `id_type`, `created_at`, `updated_at`.
   - Inline comments included for each column to describe its purpose.
+  - Attached audit trigger using `fn_write_audit()`.
   - Tested audit functionality manually with `users` table (INSERT, UPDATE, DELETE operations logged correctly).
 
-- **Next Step**:
-  - After creating HISTORY.md, README.md, and the AI guidance file, perform the **initial commit** with these changes.
+- **Document Type Table**:
+
+  - Created `document_types` table to standardize the classification of documents across the system, with fields: `id`, `code`, `name`, `description`, `is_active`, `created_at`, `updated_at`.
+  - Added inline English comments explaining the purpose of each field.
+  - Attached audit trigger using `fn_write_audit()`.
+  - Tested audit functionality manually with `document_types` table (INSERT, UPDATE, DELETE operations logged correctly).
