@@ -1,0 +1,3 @@
+input
+ventas_e_ingresos
+facturas emitidas

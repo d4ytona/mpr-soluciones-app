@@ -1,0 +1,3 @@
+input
+compras_y_gastos
+facturas de proveedores

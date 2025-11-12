@@ -20,9 +20,9 @@
 
   - Updated README with current project setup and technologies.
   - Updated HISTORY.md with today's changes (this entry).
-  - Created the AI?GUIDELINES.md file explaining:
+  - Created the AI_GUIDELINES.md file explaining:
     - How the AI should interact with the project.
-    - It must read HISTORY.md, README.md, and `scripts/db/` for context.
+    - It must read HISTORY.md, README.md, and `scripts/database/` for context.
     - Inline comments on tables and scripts are for explanation only.
     - Responses should be in Spanish, comments in English.
     - The AI should **never execute SQL or shell commands automatically**.
@@ -49,3 +49,46 @@
   - Added inline English comments explaining the purpose of each field.
   - Attached audit trigger using `fn_write_audit()`.
   - Tested audit functionality manually with `document_types` table (INSERT, UPDATE, DELETE operations logged correctly).
+
+## 2025-11-11 — Database Restructuring and Optimization
+
+- **SQL File Renumbering**:
+  - Reorganized SQL files for better organization (population scripts moved to their respective table folders):
+    - `1_audit/`: 01, 02, 03
+    - `2_users/`: 04, 05, 06 (06 = populate, moved from 17)
+    - `3_companies/`: 06, 07, 08 (08 = populate, moved from 18)
+    - `4_document_types/`: 08, 09, 10
+    - `5_input_documents/`: 11, 12, 13 (13 = populate, moved from 19)
+    - `6_output_documents/`: 14, 15, 16 (16 = populate, moved from 21)
+    - `7_legal_documents/`: 17, 18, 19 (19 = populate, moved from 20)
+    - `8_document_relations/`: 20, 21 (moved from 17, 18)
+    - Root verification scripts: 22, 23
+  - Updated internal file header comments to match new numbering.
+
+- **Data Normalization**:
+  - Converted all test data to lowercase for consistency:
+    - User names: `rachel`, `mayerling`, `jose`
+    - ID types: Changed from `'V', 'E', 'P'` to `'v', 'e', 'p'`
+    - Company names: `empresa demo 1 c.a.`, `soluciones integrales s.r.l.`, `rachel graphics studio`
+    - Tax IDs: `j-12345678-9`, `j-98765432-1`, `j-11223344-5`
+    - Document titles and descriptions converted to lowercase
+  - Updated CHECK constraint in `users` table to accept lowercase id_type values.
+  - Frontend will handle text styling and formatting.
+
+- **Database Roadmap Documentation**:
+  - Created `DATABASE_ROADMAP.md` with comprehensive explanation of:
+    - **Vistas (Views)**: Virtual tables for query simplification with 3 example implementations
+    - **RLS Policies**: Row Level Security for multi-tenant isolation (HIGH priority)
+    - **Índices**: Performance optimization with 4 types of indexes (MEDIUM-HIGH priority)
+    - **Funciones Útiles**: 4 utility functions for common operations
+    - **Scripts de Mantenimiento**: 5 maintenance scripts for database health
+  - Included implementation priorities, time estimates, and best practices.
+
+- **Database Verification**:
+  - All tables successfully verified with test data:
+    - 3 users (client, accountant, boss)
+    - 3 companies (empresa demo 1, soluciones integrales, rachel graphics studio)
+    - 202 document types
+    - 24 documents (9 input, 6 output, 9 legal)
+    - 235 audit log entries
+  - PostgreSQL 17.6 running on Supabase.

@@ -1,0 +1,3 @@
+output
+declaraciones_tributarias
+declaracion islr
