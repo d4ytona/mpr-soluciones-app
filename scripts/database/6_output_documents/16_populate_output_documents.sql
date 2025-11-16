@@ -17,6 +17,11 @@ INSERT INTO public.output_documents (
     file_url,
     notes,
     due_date,
+    source_input_document_ids,
+    period_year,
+    period_month,
+    obligation_status,
+    auto_generated,
     active
 ) VALUES
 
@@ -30,6 +35,11 @@ INSERT INTO public.output_documents (
     'https://mprsoluciones.com/output-documents/balance%20general.txt',
     'balance general del ejercicio fiscal 2024',
     '2025-03-31',
+    NULL,  -- No source input documents yet
+    2024,  -- Period year
+    12,    -- Period month (December)
+    'completed',  -- Already delivered
+    FALSE, -- Manually created, not auto-generated
     TRUE
 ),
 (
@@ -39,6 +49,11 @@ INSERT INTO public.output_documents (
     'https://mprsoluciones.com/output-documents/balance%20general.txt',
     'balance general del ejercicio fiscal 2024',
     '2025-03-31',
+    NULL,
+    2024,
+    12,
+    'completed',
+    FALSE,
     TRUE
 ),
 (
@@ -48,6 +63,11 @@ INSERT INTO public.output_documents (
     'https://mprsoluciones.com/output-documents/balance%20general.txt',
     'balance general del ejercicio fiscal 2024',
     '2025-03-31',
+    NULL,
+    2024,
+    12,
+    'completed',
+    FALSE,
     TRUE
 ),
 
@@ -61,6 +81,11 @@ INSERT INTO public.output_documents (
     'https://mprsoluciones.com/output-documents/declaracion%20islr.txt',
     'declaración de islr ejercicio fiscal 2024',
     '2025-03-31',
+    NULL,
+    2024,
+    12,
+    'completed',
+    FALSE,
     TRUE
 ),
 (
@@ -70,6 +95,11 @@ INSERT INTO public.output_documents (
     'https://mprsoluciones.com/output-documents/declaracion%20islr.txt',
     'declaración de islr ejercicio fiscal 2024',
     '2025-03-31',
+    NULL,
+    2024,
+    12,
+    'completed',
+    FALSE,
     TRUE
 ),
 (
@@ -79,5 +109,10 @@ INSERT INTO public.output_documents (
     'https://mprsoluciones.com/output-documents/declaracion%20islr.txt',
     'declaración de islr ejercicio fiscal 2024',
     '2025-03-31',
+    NULL,
+    2024,
+    12,
+    'completed',
+    FALSE,
     TRUE
 );
