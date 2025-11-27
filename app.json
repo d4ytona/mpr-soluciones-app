@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "MPR Soluciones",
+    "slug": "mpr-soluciones-app",
+    "version": "1.0.0",
+
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+
+    "experiments": {
+      "tsconfigPaths": true
+    },
+
+    "plugins": [],
+
+    "scheme": "mpr-soluciones",
+
+    "extra": {
+      "supabaseUrl": "https://ybcroxxtnaqzbfepnchp.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InliY3JveHh0bmFxemJmZXBuY2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2NDI0NTYsImV4cCI6MjA3ODIxODQ1Nn0.16eHSlTHR6enNaFzcze1zTfbKu7KlmBwWWs43U-ZwKw"
+    },
+
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+
+    "userInterfaceStyle": "light",
+
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    }
+  }
+}

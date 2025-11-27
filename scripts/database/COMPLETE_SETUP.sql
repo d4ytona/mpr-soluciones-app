@@ -10,11 +10,12 @@
 -- 3. Paste and click "Run"
 --
 -- This will create:
--- - 8 tables (7 core + 1 config + 1 audit)
--- - 7 audit triggers
--- - 3 utility functions
--- - 6 database views
--- - All test data (3 users, 3 companies, 202 document types, etc.)
+-- - 10 tables (users, companies, document_types, input/output/legal documents,
+--              monthly_obligations_config, notifications, output_required_inputs, audit_log)
+-- - 10 audit triggers
+-- - 5 utility functions (audit + obligations + notifications)
+-- - 7 database views
+-- - All test data (3 users, 3 companies, 101 document types, etc.)
 -- ============================================================
 
 -- ============================================================
@@ -100,17 +101,27 @@ DROP TABLE IF EXISTS public.companies CASCADE;
 
 CREATE TABLE public.companies (
     id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    tax_id VARCHAR(50) UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    tax_id TEXT UNIQUE NOT NULL,
     address TEXT,
-    phone VARCHAR(20),
-    email VARCHAR(255),
+    phone TEXT,
+    email TEXT,
     created_by BIGINT REFERENCES public.users(id),
+    assigned_to BIGINT REFERENCES public.users(id) ON DELETE SET NULL,
+    assigned_accountant BIGINT REFERENCES public.users(id) ON DELETE SET NULL,
+    assigned_client BIGINT REFERENCES public.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     active BOOLEAN NOT NULL DEFAULT TRUE,
     deleted_at TIMESTAMPTZ
 );
+
+-- Create indexes
+CREATE INDEX idx_companies_created_by ON public.companies(created_by);
+CREATE INDEX idx_companies_assigned_to ON public.companies(assigned_to);
+CREATE INDEX idx_companies_assigned_accountant ON public.companies(assigned_accountant);
+CREATE INDEX idx_companies_assigned_client ON public.companies(assigned_client);
+CREATE INDEX idx_companies_active ON public.companies(active) WHERE active = TRUE;
 
 -- Attach audit trigger
 DROP TRIGGER IF EXISTS trg_audit_companies ON public.companies;
@@ -147,7 +158,7 @@ CREATE TRIGGER trg_audit_document_types
 AFTER INSERT OR UPDATE OR DELETE ON public.document_types
 FOR EACH ROW EXECUTE FUNCTION public.fn_write_audit();
 
--- Populate document types (202 types)
+-- Populate document types (101 types)
 INSERT INTO public.document_types (category_type, sub_type, name, active) VALUES
 -- LEGAL DOCUMENTS
 ('legal', 'constitucion', 'rif', TRUE),
@@ -173,68 +184,88 @@ INSERT INTO public.document_types (category_type, sub_type, name, active) VALUES
 ('legal', 'bancarios', 'firmas autorizadas', TRUE),
 ('legal', 'bancarios', 'poderes bancarios', TRUE),
 
--- INPUT DOCUMENTS (continuation with key types - abridged for space)
+-- INPUT DOCUMENTS
 ('input', 'ventas_e_ingresos', 'facturas emitidas', TRUE),
 ('input', 'ventas_e_ingresos', 'notas de debito emitidas', TRUE),
 ('input', 'ventas_e_ingresos', 'notas de credito emitidas', TRUE),
 ('input', 'ventas_e_ingresos', 'comprobantes de caja', TRUE),
 ('input', 'ventas_e_ingresos', 'depositos bancarios', TRUE),
+('input', 'ventas_e_ingresos', 'retenciones recibidas', TRUE),
+('input', 'ventas_e_ingresos', 'transferencias recibidas', TRUE),
+('input', 'ventas_e_ingresos', 'pagos electronicos', TRUE),
 ('input', 'compras_y_gastos', 'facturas de proveedores', TRUE),
 ('input', 'compras_y_gastos', 'notas de debito recibidas', TRUE),
 ('input', 'compras_y_gastos', 'notas de credito recibidas', TRUE),
-('input', 'compras_y_gastos', 'recibos de pago', TRUE),
-('input', 'compras_y_gastos', 'comprobantes de gastos', TRUE),
-('input', 'nomina', 'recibos de nomina', TRUE),
-('input', 'nomina', 'planillas de aportes ivss', TRUE),
-('input', 'nomina', 'planillas de aportes inces', TRUE),
-('input', 'nomina', 'planillas de aportes faov', TRUE),
-('input', 'nomina', 'comprobantes de pago de prestaciones sociales', TRUE),
-('input', 'bancarios', 'estados de cuenta bancarios', TRUE),
-('input', 'bancarios', 'comprobantes de transferencias', TRUE),
-('input', 'bancarios', 'comprobantes de cheques', TRUE),
-('input', 'bancarios', 'notas de debito bancarias', TRUE),
-('input', 'bancarios', 'notas de credito bancarias', TRUE),
-('input', 'inventario', 'entrada de mercancia', TRUE),
-('input', 'inventario', 'salida de mercancia', TRUE),
-('input', 'inventario', 'inventario fisico', TRUE),
-('input', 'inventario', 'kardex', TRUE),
-('input', 'activos_fijos', 'facturas de compra de activos', TRUE),
-('input', 'activos_fijos', 'avaluo de activos', TRUE),
-('input', 'activos_fijos', 'registro de depreciacion', TRUE),
-('input', 'contratos', 'contratos de arrendamiento', TRUE),
-('input', 'contratos', 'contratos de servicios', TRUE),
-('input', 'contratos', 'contratos de compraventa', TRUE),
-('input', 'contratos', 'contratos laborales', TRUE),
+('input', 'compras_y_gastos', 'recibos de servicios publicos', TRUE),
+('input', 'compras_y_gastos', 'comprobantes de combustible', TRUE),
+('input', 'compras_y_gastos', 'facturas de mantenimiento', TRUE),
+('input', 'compras_y_gastos', 'comprobantes de alquiler', TRUE),
+('input', 'compras_y_gastos', 'facturas de seguros', TRUE),
+('input', 'compras_y_gastos', 'comprobantes de publicidad', TRUE),
+('input', 'compras_y_gastos', 'facturas de papeleria', TRUE),
+('input', 'compras_y_gastos', 'comprobantes de viaticos', TRUE),
+('input', 'nomina', 'recibos de pago de nomina', TRUE),
+('input', 'nomina', 'aportes ivss', TRUE),
+('input', 'nomina', 'aportes inces', TRUE),
+('input', 'nomina', 'retenciones islr sueldos', TRUE),
+('input', 'nomina', 'constancias de trabajo', TRUE),
+('input', 'nomina', 'reposos medicos', TRUE),
+('input', 'nomina', 'vacaciones y liquidaciones', TRUE),
+('input', 'nomina', 'bonificaciones', TRUE),
+('input', 'bancarios_y_financieros', 'estados de cuenta', TRUE),
+('input', 'bancarios_y_financieros', 'conciliaciones bancarias', TRUE),
+('input', 'bancarios_y_financieros', 'intereses ganados', TRUE),
+('input', 'bancarios_y_financieros', 'comisiones bancarias', TRUE),
+('input', 'bancarios_y_financieros', 'prestamos', TRUE),
+('input', 'bancarios_y_financieros', 'inversiones', TRUE),
+('input', 'bancarios_y_financieros', 'cambio de divisas', TRUE),
+('input', 'inventarios_y_activos', 'compra de inventario', TRUE),
+('input', 'inventarios_y_activos', 'movimientos de almacen', TRUE),
+('input', 'inventarios_y_activos', 'inventarios fisicos', TRUE),
+('input', 'inventarios_y_activos', 'compra de activos fijos', TRUE),
+('input', 'inventarios_y_activos', 'depreciacion', TRUE),
+('input', 'inventarios_y_activos', 'bajas y ventas de activos', TRUE),
 
 -- OUTPUT DOCUMENTS
 ('output', 'estados_financieros', 'balance general', TRUE),
 ('output', 'estados_financieros', 'estado de resultados', TRUE),
 ('output', 'estados_financieros', 'estado de cambios en el patrimonio', TRUE),
-('output', 'estados_financieros', 'estado de flujos de efectivo', TRUE),
+('output', 'estados_financieros', 'estado de flujo de efectivo', TRUE),
 ('output', 'estados_financieros', 'notas a los estados financieros', TRUE),
-('output', 'declaraciones_tributarias', 'declaracion iva', TRUE),
-('output', 'declaraciones_tributarias', 'declaracion islr', TRUE),
-('output', 'declaraciones_tributarias', 'retenciones iva', TRUE),
-('output', 'declaraciones_tributarias', 'retenciones islr', TRUE),
-('output', 'declaraciones_tributarias', 'declaracion de impuestos municipales', TRUE),
 ('output', 'libros_contables', 'libro diario', TRUE),
 ('output', 'libros_contables', 'libro mayor', TRUE),
 ('output', 'libros_contables', 'libro de inventarios', TRUE),
-('output', 'libros_contables', 'libro de compras y ventas', TRUE),
-('output', 'reportes', 'analisis financiero', TRUE),
-('output', 'reportes', 'indicadores financieros', TRUE),
-('output', 'reportes', 'flujo de caja proyectado', TRUE),
-('output', 'reportes', 'presupuesto anual', TRUE),
-('output', 'reportes', 'informe de gestion', TRUE),
-('output', 'obligaciones_laborales', 'planilla ivss', TRUE),
-('output', 'obligaciones_laborales', 'planilla inces', TRUE),
-('output', 'obligaciones_laborales', 'planilla faov', TRUE),
-('output', 'obligaciones_laborales', 'calculo de prestaciones sociales', TRUE),
-('output', 'obligaciones_laborales', 'calculo de utilidades', TRUE),
-('output', 'obligaciones_laborales', 'calculo de vacaciones', TRUE);
-
--- Note: This is an abridged version. The full populate script has 202 document types.
--- For production, include all 202 types from 4_document_types/10_populate_document_types.sql
+('output', 'libros_contables', 'libro de actas', TRUE),
+('output', 'libros_contables', 'libro de accionistas', TRUE),
+('output', 'declaraciones_tributarias', 'declaracion islr', TRUE),
+('output', 'declaraciones_tributarias', 'retenciones islr', TRUE),
+('output', 'declaraciones_tributarias', 'declaracion iva', TRUE),
+('output', 'declaraciones_tributarias', 'retenciones iva', TRUE),
+('output', 'declaraciones_tributarias', 'declaracion dpp', TRUE),
+('output', 'declaraciones_tributarias', 'declaracion igft', TRUE),
+('output', 'declaraciones_tributarias', 'declaracion igtp', TRUE),
+('output', 'declaraciones_tributarias', 'declaracion actividades economicas', TRUE),
+('output', 'declaraciones_tributarias', 'servicios municipales', TRUE),
+('output', 'declaraciones_tributarias', 'retenciones municipales', TRUE),
+('output', 'declaraciones_tributarias', 'libros de compras y ventas', TRUE),
+('output', 'declaraciones_personal', 'retenciones islr sueldos', TRUE),
+('output', 'declaraciones_personal', 'aportes ivss', TRUE),
+('output', 'declaraciones_personal', 'aportes inces', TRUE),
+('output', 'declaraciones_personal', 'aportes faov', TRUE),
+('output', 'declaraciones_personal', 'constancias de trabajo', TRUE),
+('output', 'declaraciones_personal', 'certificaciones laborales', TRUE),
+('output', 'reportes', 'conciliaciones bancarias', TRUE),
+('output', 'reportes', 'cuentas por cobrar', TRUE),
+('output', 'reportes', 'cuentas por pagar', TRUE),
+('output', 'reportes', 'control de inventarios', TRUE),
+('output', 'reportes', 'analisis de rentabilidad', TRUE),
+('output', 'reportes', 'reportes de gestion financiera', TRUE),
+('output', 'reportes', 'presupuestos y proyecciones', TRUE),
+('output', 'regulatorios', 'cierres contables', TRUE),
+('output', 'regulatorios', 'informes de auditoria', TRUE),
+('output', 'regulatorios', 'certificaciones contables', TRUE),
+('output', 'regulatorios', 'constancias fiscales', TRUE),
+('output', 'regulatorios', 'solvencias tributarias', TRUE);
 
 -- ============================================================
 -- PART 5: INPUT DOCUMENTS TABLE
@@ -267,13 +298,13 @@ INSERT INTO public.input_documents (company_id, document_type_id, title, file_ur
 ((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'compras_y_gastos' AND name = 'facturas de proveedores' LIMIT 1), 'factura proveedor xyz-123', 'https://mprsoluciones.com/input-documents/factura%20proveedor.txt', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'ventas_e_ingresos' AND name = 'facturas emitidas' LIMIT 1), 'factura 050-2024', 'https://mprsoluciones.com/input-documents/factura%20050.txt', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'compras_y_gastos' AND name = 'facturas de proveedores' LIMIT 1), 'compra materiales oct-2024', 'https://mprsoluciones.com/input-documents/compra%20materiales.txt', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'nomina' AND name = 'recibos de nomina' LIMIT 1), 'nomina octubre 2024', 'https://mprsoluciones.com/input-documents/nomina%20oct.txt', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'nomina' AND name = 'recibos de pago de nomina' LIMIT 1), 'nomina octubre 2024', 'https://mprsoluciones.com/input-documents/nomina%20oct.txt', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'ventas_e_ingresos' AND name = 'facturas emitidas' LIMIT 1), 'factura diseño web 001', 'https://mprsoluciones.com/input-documents/diseno%20web.txt', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'compras_y_gastos' AND name = 'facturas de proveedores' LIMIT 1), 'hosting anual 2024', 'https://mprsoluciones.com/input-documents/hosting.txt', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'nomina' AND name = 'recibos de nomina' LIMIT 1), 'nomina noviembre 2024', 'https://mprsoluciones.com/input-documents/nomina%20nov.txt', TRUE);
+((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'nomina' AND name = 'recibos de pago de nomina' LIMIT 1), 'nomina noviembre 2024', 'https://mprsoluciones.com/input-documents/nomina%20nov.txt', TRUE);
 
 -- ============================================================
--- PART 6: OUTPUT DOCUMENTS TABLE (ENHANCED)
+-- PART 6: OUTPUT DOCUMENTS TABLE
 -- ============================================================
 
 DROP TABLE IF EXISTS public.output_documents CASCADE;
@@ -381,19 +412,115 @@ FOR EACH ROW EXECUTE FUNCTION public.fn_write_audit();
 -- Populate monthly obligations config
 INSERT INTO public.monthly_obligations_config (company_id, document_type_id, frequency, due_day, enabled, notes, active) VALUES
 ((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de iva', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'libros_contables' AND name = 'libro de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'libros de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'retenciones iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de retenciones de iva', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), 'annual', 31, TRUE, 'declaracion anual de islr, vence 31 de marzo', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de iva', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'libros_contables' AND name = 'libro de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'libros de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), 'annual', 31, TRUE, 'declaracion anual de islr, vence 31 de marzo', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de iva', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'libros_contables' AND name = 'libro de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'libros de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'retenciones iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de retenciones de iva', TRUE),
 ((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'estados_financieros' AND name = 'balance general' LIMIT 1), 'quarterly', 30, TRUE, 'balance general trimestral', TRUE);
 
 -- ============================================================
--- PART 9: UTILITY FUNCTIONS
+-- PART 9: NOTIFICATIONS TABLE
+-- ============================================================
+
+DROP TABLE IF EXISTS public.notifications CASCADE;
+
+CREATE TABLE public.notifications (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    obligation_id BIGINT REFERENCES public.output_documents(id) ON DELETE CASCADE,
+    company_id BIGINT REFERENCES public.companies(id) ON DELETE CASCADE,
+    notification_type VARCHAR(50) NOT NULL DEFAULT 'status_change',
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    deleted_at TIMESTAMPTZ
+);
+
+-- Create indexes
+CREATE INDEX idx_notifications_user_id ON public.notifications(user_id);
+CREATE INDEX idx_notifications_obligation_id ON public.notifications(obligation_id);
+CREATE INDEX idx_notifications_company_id ON public.notifications(company_id);
+CREATE INDEX idx_notifications_is_read ON public.notifications(is_read);
+CREATE INDEX idx_notifications_created_at ON public.notifications(created_at DESC);
+CREATE INDEX idx_notifications_active ON public.notifications(active) WHERE active = TRUE;
+
+-- Attach audit trigger
+DROP TRIGGER IF EXISTS trg_audit_notifications ON public.notifications;
+CREATE TRIGGER trg_audit_notifications
+AFTER INSERT OR UPDATE OR DELETE ON public.notifications
+FOR EACH ROW EXECUTE FUNCTION public.fn_write_audit();
+
+-- ============================================================
+-- PART 10: OUTPUT REQUIRED INPUTS TABLE
+-- ============================================================
+
+DROP TABLE IF EXISTS public.output_required_inputs CASCADE;
+
+CREATE TABLE public.output_required_inputs (
+    id BIGSERIAL PRIMARY KEY,
+    output_document_type_id BIGINT NOT NULL REFERENCES public.document_types(id),
+    required_input_document_type_id BIGINT NOT NULL REFERENCES public.document_types(id),
+    is_mandatory BOOLEAN NOT NULL DEFAULT TRUE,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    deleted_at TIMESTAMPTZ,
+    UNIQUE(output_document_type_id, required_input_document_type_id)
+);
+
+-- Create indexes
+CREATE INDEX idx_output_required_inputs_output_type ON public.output_required_inputs(output_document_type_id) WHERE active = TRUE;
+CREATE INDEX idx_output_required_inputs_input_type ON public.output_required_inputs(required_input_document_type_id) WHERE active = TRUE;
+
+-- Attach audit trigger
+DROP TRIGGER IF EXISTS trg_audit_output_required_inputs ON public.output_required_inputs;
+CREATE TRIGGER trg_audit_output_required_inputs
+AFTER INSERT OR UPDATE OR DELETE ON public.output_required_inputs
+FOR EACH ROW EXECUTE FUNCTION public.fn_write_audit();
+
+-- Populate required inputs mappings
+-- Helper function
+CREATE OR REPLACE FUNCTION get_doc_type_id(p_category VARCHAR, p_sub_type VARCHAR, p_name TEXT)
+RETURNS BIGINT AS $$
+BEGIN
+    RETURN (SELECT id FROM public.document_types WHERE category_type = p_category AND sub_type = p_sub_type AND name = p_name LIMIT 1);
+END;
+$$ LANGUAGE plpgsql;
+
+INSERT INTO public.output_required_inputs (output_document_type_id, required_input_document_type_id, is_mandatory, notes) VALUES
+-- DECLARACIÓN IVA
+(get_doc_type_id('output', 'declaraciones_tributarias', 'declaracion iva'), get_doc_type_id('input', 'ventas_e_ingresos', 'facturas emitidas'), TRUE, 'Facturas de ventas del período'),
+(get_doc_type_id('output', 'declaraciones_tributarias', 'declaracion iva'), get_doc_type_id('input', 'compras_y_gastos', 'facturas de proveedores'), TRUE, 'Facturas de compras del período'),
+(get_doc_type_id('output', 'declaraciones_tributarias', 'declaracion iva'), get_doc_type_id('input', 'ventas_e_ingresos', 'notas de credito emitidas'), FALSE, 'Notas de crédito (si aplica)'),
+(get_doc_type_id('output', 'declaraciones_tributarias', 'declaracion iva'), get_doc_type_id('input', 'ventas_e_ingresos', 'notas de debito emitidas'), FALSE, 'Notas de débito (si aplica)'),
+-- LIBRO DE COMPRAS Y VENTAS
+(get_doc_type_id('output', 'declaraciones_tributarias', 'libros de compras y ventas'), get_doc_type_id('input', 'ventas_e_ingresos', 'facturas emitidas'), TRUE, 'Todas las facturas de ventas'),
+(get_doc_type_id('output', 'declaraciones_tributarias', 'libros de compras y ventas'), get_doc_type_id('input', 'compras_y_gastos', 'facturas de proveedores'), TRUE, 'Todas las facturas de compras'),
+-- RETENCIONES IVA
+(get_doc_type_id('output', 'declaraciones_tributarias', 'retenciones iva'), get_doc_type_id('input', 'compras_y_gastos', 'facturas de proveedores'), TRUE, 'Facturas con retenciones'),
+(get_doc_type_id('output', 'declaraciones_tributarias', 'retenciones iva'), get_doc_type_id('input', 'ventas_e_ingresos', 'retenciones recibidas'), FALSE, 'Comprobantes de retenciones (si aplica)'),
+-- DECLARACIÓN ISLR
+(get_doc_type_id('output', 'declaraciones_tributarias', 'declaracion islr'), get_doc_type_id('output', 'estados_financieros', 'balance general'), TRUE, 'Balance General del ejercicio'),
+(get_doc_type_id('output', 'declaraciones_tributarias', 'declaracion islr'), get_doc_type_id('input', 'ventas_e_ingresos', 'facturas emitidas'), TRUE, 'Facturas del año fiscal'),
+(get_doc_type_id('output', 'declaraciones_tributarias', 'declaracion islr'), get_doc_type_id('input', 'compras_y_gastos', 'facturas de proveedores'), TRUE, 'Compras del año fiscal'),
+(get_doc_type_id('output', 'declaraciones_tributarias', 'declaracion islr'), get_doc_type_id('input', 'nomina', 'recibos de pago de nomina'), TRUE, 'Nómina del año fiscal'),
+-- BALANCE GENERAL
+(get_doc_type_id('output', 'estados_financieros', 'balance general'), get_doc_type_id('input', 'bancarios_y_financieros', 'estados de cuenta'), TRUE, 'Estados de cuenta del período'),
+(get_doc_type_id('output', 'estados_financieros', 'balance general'), get_doc_type_id('input', 'bancarios_y_financieros', 'conciliaciones bancarias'), TRUE, 'Conciliaciones bancarias'),
+(get_doc_type_id('output', 'estados_financieros', 'balance general'), get_doc_type_id('input', 'inventarios_y_activos', 'inventarios fisicos'), FALSE, 'Inventario físico (si aplica)');
+
+DROP FUNCTION get_doc_type_id(VARCHAR, VARCHAR, TEXT);
+
+-- ============================================================
+-- PART 11: UTILITY FUNCTIONS
 -- ============================================================
 
 -- Function: Generate Monthly Obligations
@@ -575,8 +702,110 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function: Notify on Obligation Status Change
+CREATE OR REPLACE FUNCTION public.fn_notify_obligation_status_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    company_record RECORD;
+    notification_title VARCHAR(255);
+    notification_message TEXT;
+BEGIN
+    IF OLD.obligation_status IS DISTINCT FROM NEW.obligation_status THEN
+        SELECT c.id, c.name, c.assigned_accountant, c.assigned_client
+        INTO company_record
+        FROM public.companies c
+        WHERE c.id = NEW.company_id;
+
+        notification_title := CASE
+            WHEN NEW.obligation_status = 'completed' THEN 'Obligación Completada'
+            WHEN NEW.obligation_status = 'in_progress' THEN 'Obligación En Progreso'
+            WHEN NEW.obligation_status = 'overdue' THEN 'Obligación Vencida'
+            ELSE 'Cambio de Estado'
+        END;
+
+        notification_message := format(
+            'La obligación de %s para %s ha cambiado de estado: %s → %s',
+            (SELECT name FROM public.document_types WHERE id = NEW.document_type_id),
+            company_record.name,
+            COALESCE(OLD.obligation_status, 'nuevo'),
+            NEW.obligation_status
+        );
+
+        IF company_record.assigned_accountant IS NOT NULL THEN
+            INSERT INTO public.notifications (user_id, title, message, obligation_id, company_id, notification_type)
+            VALUES (company_record.assigned_accountant, notification_title, notification_message, NEW.id, NEW.company_id, 'status_change');
+        END IF;
+
+        IF company_record.assigned_client IS NOT NULL THEN
+            INSERT INTO public.notifications (user_id, title, message, obligation_id, company_id, notification_type)
+            VALUES (company_record.assigned_client, notification_title, notification_message, NEW.id, NEW.company_id, 'status_change');
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function: Notify on New Obligation
+CREATE OR REPLACE FUNCTION public.fn_notify_new_obligation()
+RETURNS TRIGGER AS $$
+DECLARE
+    company_record RECORD;
+    notification_title VARCHAR(255);
+    notification_message TEXT;
+    period_text TEXT;
+BEGIN
+    IF NEW.auto_generated = TRUE THEN
+        SELECT c.id, c.name, c.assigned_accountant, c.assigned_client
+        INTO company_record
+        FROM public.companies c
+        WHERE c.id = NEW.company_id;
+
+        period_text := to_char(make_date(NEW.period_year, NEW.period_month, 1), 'Month YYYY');
+        notification_title := 'Nueva Obligación';
+        notification_message := format(
+            'Nueva obligación creada: %s - %s para %s. Vence: %s',
+            (SELECT name FROM public.document_types WHERE id = NEW.document_type_id),
+            period_text,
+            company_record.name,
+            to_char(NEW.due_date, 'DD/MM/YYYY')
+        );
+
+        IF company_record.assigned_accountant IS NOT NULL THEN
+            INSERT INTO public.notifications (user_id, title, message, obligation_id, company_id, notification_type)
+            VALUES (company_record.assigned_accountant, notification_title, notification_message, NEW.id, NEW.company_id, 'new_obligation');
+        END IF;
+
+        IF company_record.assigned_client IS NOT NULL THEN
+            INSERT INTO public.notifications (user_id, title, message, obligation_id, company_id, notification_type)
+            VALUES (company_record.assigned_client, notification_title, notification_message, NEW.id, NEW.company_id, 'new_obligation');
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ============================================================
--- PART 10: DATABASE VIEWS
+-- PART 12: NOTIFICATION TRIGGERS
+-- ============================================================
+
+-- Trigger for obligation status changes
+DROP TRIGGER IF EXISTS trg_notify_obligation_status_change ON public.output_documents;
+CREATE TRIGGER trg_notify_obligation_status_change
+    AFTER UPDATE ON public.output_documents
+    FOR EACH ROW
+    EXECUTE FUNCTION public.fn_notify_obligation_status_change();
+
+-- Trigger for new obligations
+DROP TRIGGER IF EXISTS trg_notify_new_obligation ON public.output_documents;
+CREATE TRIGGER trg_notify_new_obligation
+    AFTER INSERT ON public.output_documents
+    FOR EACH ROW
+    EXECUTE FUNCTION public.fn_notify_new_obligation();
+
+-- ============================================================
+-- PART 13: DATABASE VIEWS
 -- ============================================================
 
 -- View: User Profiles
@@ -774,11 +1003,37 @@ FROM public.v_document_relationships vdr
 LEFT JOIN public.input_documents id ON vdr.input_document_id = id.id
 LEFT JOIN public.document_types dt_in ON id.document_type_id = dt_in.id;
 
+-- View: User Notifications
+DROP VIEW IF EXISTS public.v_user_notifications CASCADE;
+CREATE VIEW public.v_user_notifications AS
+SELECT
+    n.id,
+    n.user_id,
+    n.title,
+    n.message,
+    n.obligation_id,
+    n.company_id,
+    n.notification_type,
+    n.is_read,
+    n.created_at,
+    c.name as company_name,
+    c.tax_id as company_tax_id,
+    dt.name as obligation_type,
+    od.period_year,
+    od.period_month,
+    od.due_date,
+    od.obligation_status
+FROM public.notifications n
+LEFT JOIN public.companies c ON n.company_id = c.id
+LEFT JOIN public.output_documents od ON n.obligation_id = od.id
+LEFT JOIN public.document_types dt ON od.document_type_id = dt.id
+WHERE n.active = TRUE
+ORDER BY n.created_at DESC;
+
 -- ============================================================
 -- SETUP COMPLETE
 -- ============================================================
 
--- Display summary
 DO $$
 BEGIN
     RAISE NOTICE '';
@@ -787,21 +1042,25 @@ BEGIN
     RAISE NOTICE '========================================';
     RAISE NOTICE '';
     RAISE NOTICE 'Summary:';
-    RAISE NOTICE '  - 8 tables created (7 core + 1 config + 1 audit)';
-    RAISE NOTICE '  - 7 audit triggers attached';
-    RAISE NOTICE '  - 3 utility functions created';
-    RAISE NOTICE '  - 6 views created';
+    RAISE NOTICE '  - 10 tables created';
+    RAISE NOTICE '  - 10 audit triggers attached';
+    RAISE NOTICE '  - 5 utility functions created';
+    RAISE NOTICE '  - 7 views created';
     RAISE NOTICE '  - 3 users populated';
     RAISE NOTICE '  - 3 companies populated';
+    RAISE NOTICE '  - 101 document types populated';
     RAISE NOTICE '  - 11 obligation configs populated';
     RAISE NOTICE '';
+    RAISE NOTICE 'Tables:';
+    RAISE NOTICE '  users, companies, document_types,';
+    RAISE NOTICE '  input_documents, output_documents, legal_documents,';
+    RAISE NOTICE '  monthly_obligations_config, notifications,';
+    RAISE NOTICE '  output_required_inputs, audit_log';
+    RAISE NOTICE '';
     RAISE NOTICE 'Next Steps:';
-    RAISE NOTICE '  1. Generate 2025 obligations (see script below)';
+    RAISE NOTICE '  1. Generate obligations: SELECT * FROM fn_generate_monthly_obligations();';
     RAISE NOTICE '  2. Test views: SELECT * FROM v_obligations_dashboard;';
-    RAISE NOTICE '  3. Test functions: SELECT * FROM fn_generate_monthly_obligations();';
+    RAISE NOTICE '  3. Run VERIFICATION.sql to validate setup';
     RAISE NOTICE '';
     RAISE NOTICE '========================================';
 END $$;
-
--- Optional: Uncomment to auto-generate 2025 obligations
--- SELECT * FROM fn_generate_monthly_obligations(NULL, 2025, generate_series(1, 11));
