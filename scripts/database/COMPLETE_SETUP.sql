@@ -10,11 +10,12 @@
 -- 3. Paste and click "Run"
 --
 -- This will create:
--- - 10 tables (users, companies, document_types, input/output/legal documents,
---              monthly_obligations_config, notifications, output_required_inputs, audit_log)
+-- - 11 tables (users, companies, document_types, input/output/legal documents,
+--              monthly_obligations_config, notifications, output_required_inputs,
+--              cron_execution_log, audit_log)
 -- - 10 audit triggers
--- - 5 utility functions (audit + obligations + notifications)
--- - 7 database views
+-- - 6 utility functions (audit + obligations + notifications + deadline checking)
+-- - 8 database views (including v_cron_status for monitoring)
 -- - All test data (3 users, 3 companies, 101 document types, etc.)
 -- ============================================================
 
@@ -74,7 +75,7 @@ CREATE TABLE public.users (
     phone VARCHAR(20),
     birth_date DATE,
     id_number VARCHAR(20),
-    id_type VARCHAR(10) CHECK (id_type IN ('v', 'e', 'p', 'j', 'g')),
+    id_type VARCHAR(10) CHECK (id_type IN ('v', 'e', 'p')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -103,6 +104,7 @@ CREATE TABLE public.companies (
     id BIGSERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     tax_id TEXT UNIQUE NOT NULL,
+    id_type VARCHAR(10) NOT NULL CHECK (id_type IN ('j', 'g')),
     address TEXT,
     phone TEXT,
     email TEXT,
@@ -130,10 +132,10 @@ AFTER INSERT OR UPDATE OR DELETE ON public.companies
 FOR EACH ROW EXECUTE FUNCTION public.fn_write_audit();
 
 -- Populate companies
-INSERT INTO public.companies (name, tax_id, address, phone, email, created_by, active) VALUES
-('empresa demo 1 c.a.', 'j-12345678-9', 'av. principal, caracas', '+58-212-1234567', 'contacto@empresademo1.com', 2, TRUE),
-('soluciones integrales s.r.l.', 'j-98765432-1', 'calle comercio, valencia', '+58-241-9876543', 'info@soluciones.com', 2, TRUE),
-('rachel graphics studio', 'j-11223344-5', 'zona industrial, maracay', '+58-243-1122334', 'rachelmariaines@gmail.com', 1, TRUE);
+INSERT INTO public.companies (name, tax_id, id_type, address, phone, email, created_by, active) VALUES
+('empresa demo 1 c.a.', '12345678-9', 'j', 'av. principal, caracas', '+58-212-1234567', 'contacto@empresademo1.com', 2, TRUE),
+('soluciones integrales s.r.l.', '98765432-1', 'j', 'calle comercio, valencia', '+58-241-9876543', 'info@soluciones.com', 2, TRUE),
+('rachel graphics studio', '11223344-5', 'j', 'zona industrial, maracay', '+58-243-1122334', 'rachelmariaines@gmail.com', 1, TRUE);
 
 -- ============================================================
 -- PART 4: DOCUMENT TYPES TABLE
@@ -293,15 +295,15 @@ FOR EACH ROW EXECUTE FUNCTION public.fn_write_audit();
 
 -- Populate input documents
 INSERT INTO public.input_documents (company_id, document_type_id, title, file_url, active) VALUES
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'ventas_e_ingresos' AND name = 'facturas emitidas' LIMIT 1), 'factura 001-2024', 'https://mprsoluciones.com/input-documents/factura%20001.txt', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'ventas_e_ingresos' AND name = 'facturas emitidas' LIMIT 1), 'factura 002-2024', 'https://mprsoluciones.com/input-documents/factura%20002.txt', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'compras_y_gastos' AND name = 'facturas de proveedores' LIMIT 1), 'factura proveedor xyz-123', 'https://mprsoluciones.com/input-documents/factura%20proveedor.txt', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'ventas_e_ingresos' AND name = 'facturas emitidas' LIMIT 1), 'factura 050-2024', 'https://mprsoluciones.com/input-documents/factura%20050.txt', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'compras_y_gastos' AND name = 'facturas de proveedores' LIMIT 1), 'compra materiales oct-2024', 'https://mprsoluciones.com/input-documents/compra%20materiales.txt', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'nomina' AND name = 'recibos de pago de nomina' LIMIT 1), 'nomina octubre 2024', 'https://mprsoluciones.com/input-documents/nomina%20oct.txt', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'ventas_e_ingresos' AND name = 'facturas emitidas' LIMIT 1), 'factura diseño web 001', 'https://mprsoluciones.com/input-documents/diseno%20web.txt', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'compras_y_gastos' AND name = 'facturas de proveedores' LIMIT 1), 'hosting anual 2024', 'https://mprsoluciones.com/input-documents/hosting.txt', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'nomina' AND name = 'recibos de pago de nomina' LIMIT 1), 'nomina noviembre 2024', 'https://mprsoluciones.com/input-documents/nomina%20nov.txt', TRUE);
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'ventas_e_ingresos' AND name = 'facturas emitidas' LIMIT 1), 'factura 001-2024', 'https://mprsoluciones.com/input-documents/factura%20001.txt', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'ventas_e_ingresos' AND name = 'facturas emitidas' LIMIT 1), 'factura 002-2024', 'https://mprsoluciones.com/input-documents/factura%20002.txt', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'compras_y_gastos' AND name = 'facturas de proveedores' LIMIT 1), 'factura proveedor xyz-123', 'https://mprsoluciones.com/input-documents/factura%20proveedor.txt', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'ventas_e_ingresos' AND name = 'facturas emitidas' LIMIT 1), 'factura 050-2024', 'https://mprsoluciones.com/input-documents/factura%20050.txt', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'compras_y_gastos' AND name = 'facturas de proveedores' LIMIT 1), 'compra materiales oct-2024', 'https://mprsoluciones.com/input-documents/compra%20materiales.txt', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'nomina' AND name = 'recibos de pago de nomina' LIMIT 1), 'nomina octubre 2024', 'https://mprsoluciones.com/input-documents/nomina%20oct.txt', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'ventas_e_ingresos' AND name = 'facturas emitidas' LIMIT 1), 'factura diseño web 001', 'https://mprsoluciones.com/input-documents/diseno%20web.txt', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'compras_y_gastos' AND name = 'facturas de proveedores' LIMIT 1), 'hosting anual 2024', 'https://mprsoluciones.com/input-documents/hosting.txt', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'input' AND sub_type = 'nomina' AND name = 'recibos de pago de nomina' LIMIT 1), 'nomina noviembre 2024', 'https://mprsoluciones.com/input-documents/nomina%20nov.txt', TRUE);
 
 -- ============================================================
 -- PART 6: OUTPUT DOCUMENTS TABLE
@@ -336,12 +338,12 @@ FOR EACH ROW EXECUTE FUNCTION public.fn_write_audit();
 
 -- Populate output documents
 INSERT INTO public.output_documents (company_id, document_type_id, uploaded_by, file_url, notes, due_date, source_input_document_ids, period_year, period_month, obligation_status, auto_generated, active) VALUES
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'estados_financieros' AND name = 'balance general' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/balance%20general.txt', 'balance general del ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'estados_financieros' AND name = 'balance general' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/balance%20general.txt', 'balance general del ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'estados_financieros' AND name = 'balance general' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/balance%20general.txt', 'balance general del ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/declaracion%20islr.txt', 'declaración de islr ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/declaracion%20islr.txt', 'declaración de islr ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/declaracion%20islr.txt', 'declaración de islr ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE);
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'estados_financieros' AND name = 'balance general' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/balance%20general.txt', 'balance general del ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'estados_financieros' AND name = 'balance general' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/balance%20general.txt', 'balance general del ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'estados_financieros' AND name = 'balance general' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/balance%20general.txt', 'balance general del ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/declaracion%20islr.txt', 'declaración de islr ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/declaracion%20islr.txt', 'declaración de islr ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), (SELECT id FROM public.users WHERE email = 'joselayett@gmail.com' LIMIT 1), 'https://mprsoluciones.com/output-documents/declaracion%20islr.txt', 'declaración de islr ejercicio fiscal 2024', '2025-03-31', NULL, 2024, 12, 'completed', FALSE, TRUE);
 
 -- ============================================================
 -- PART 7: LEGAL DOCUMENTS TABLE
@@ -369,15 +371,15 @@ FOR EACH ROW EXECUTE FUNCTION public.fn_write_audit();
 
 -- Populate legal documents
 INSERT INTO public.legal_documents (company_id, document_type_id, file_url, expiration_date, active) VALUES
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'constitucion' AND name = 'rif' LIMIT 1), 'https://mprsoluciones.com/legal-documents/rif.txt', '2025-12-31', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'representante_legal' AND name = 'cedula de identidad' LIMIT 1), 'https://mprsoluciones.com/legal-documents/cedula.txt', NULL, TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'registros_y_autorizaciones' AND name = 'registro ivss' LIMIT 1), 'https://mprsoluciones.com/legal-documents/ivss.txt', '2025-06-30', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'constitucion' AND name = 'rif' LIMIT 1), 'https://mprsoluciones.com/legal-documents/rif.txt', '2025-12-31', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'representante_legal' AND name = 'cedula de identidad' LIMIT 1), 'https://mprsoluciones.com/legal-documents/cedula.txt', NULL, TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'registros_y_autorizaciones' AND name = 'registro ivss' LIMIT 1), 'https://mprsoluciones.com/legal-documents/ivss.txt', '2025-06-30', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'constitucion' AND name = 'rif' LIMIT 1), 'https://mprsoluciones.com/legal-documents/rif.txt', '2025-12-31', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'representante_legal' AND name = 'cedula de identidad' LIMIT 1), 'https://mprsoluciones.com/legal-documents/cedula.txt', NULL, TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'registros_y_autorizaciones' AND name = 'registro ivss' LIMIT 1), 'https://mprsoluciones.com/legal-documents/ivss.txt', '2025-06-30', TRUE);
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'constitucion' AND name = 'rif' LIMIT 1), 'https://mprsoluciones.com/legal-documents/rif.txt', '2025-12-31', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'representante_legal' AND name = 'cedula de identidad' LIMIT 1), 'https://mprsoluciones.com/legal-documents/cedula.txt', NULL, TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'registros_y_autorizaciones' AND name = 'registro ivss' LIMIT 1), 'https://mprsoluciones.com/legal-documents/ivss.txt', '2025-06-30', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'constitucion' AND name = 'rif' LIMIT 1), 'https://mprsoluciones.com/legal-documents/rif.txt', '2025-12-31', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'representante_legal' AND name = 'cedula de identidad' LIMIT 1), 'https://mprsoluciones.com/legal-documents/cedula.txt', NULL, TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'registros_y_autorizaciones' AND name = 'registro ivss' LIMIT 1), 'https://mprsoluciones.com/legal-documents/ivss.txt', '2025-06-30', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'constitucion' AND name = 'rif' LIMIT 1), 'https://mprsoluciones.com/legal-documents/rif.txt', '2025-12-31', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'representante_legal' AND name = 'cedula de identidad' LIMIT 1), 'https://mprsoluciones.com/legal-documents/cedula.txt', NULL, TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'legal' AND sub_type = 'registros_y_autorizaciones' AND name = 'registro ivss' LIMIT 1), 'https://mprsoluciones.com/legal-documents/ivss.txt', '2025-06-30', TRUE);
 
 -- ============================================================
 -- PART 8: MONTHLY OBLIGATIONS CONFIG TABLE
@@ -411,17 +413,17 @@ FOR EACH ROW EXECUTE FUNCTION public.fn_write_audit();
 
 -- Populate monthly obligations config
 INSERT INTO public.monthly_obligations_config (company_id, document_type_id, frequency, due_day, enabled, notes, active) VALUES
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de iva', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'libros de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'retenciones iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de retenciones de iva', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), 'annual', 31, TRUE, 'declaracion anual de islr, vence 31 de marzo', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de iva', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'libros de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), 'annual', 31, TRUE, 'declaracion anual de islr, vence 31 de marzo', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de iva', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'libros de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'retenciones iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de retenciones de iva', TRUE),
-((SELECT id FROM public.companies WHERE tax_id = 'j-11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'estados_financieros' AND name = 'balance general' LIMIT 1), 'quarterly', 30, TRUE, 'balance general trimestral', TRUE);
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de iva', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'libros de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'retenciones iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de retenciones de iva', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '12345678-9' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), 'annual', 31, TRUE, 'declaracion anual de islr, vence 31 de marzo', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de iva', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'libros de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '98765432-1' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion islr' LIMIT 1), 'annual', 31, TRUE, 'declaracion anual de islr, vence 31 de marzo', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'declaracion iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de iva', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'libros de compras y ventas' LIMIT 1), 'monthly', 10, TRUE, 'libro mensual de compras y ventas', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'declaraciones_tributarias' AND name = 'retenciones iva' LIMIT 1), 'monthly', 15, TRUE, 'declaracion mensual de retenciones de iva', TRUE),
+((SELECT id FROM public.companies WHERE tax_id = '11223344-5' LIMIT 1), (SELECT id FROM public.document_types WHERE category_type = 'output' AND sub_type = 'estados_financieros' AND name = 'balance general' LIMIT 1), 'quarterly', 30, TRUE, 'balance general trimestral', TRUE);
 
 -- ============================================================
 -- PART 9: NOTIFICATIONS TABLE
@@ -520,7 +522,48 @@ INSERT INTO public.output_required_inputs (output_document_type_id, required_inp
 DROP FUNCTION get_doc_type_id(VARCHAR, VARCHAR, TEXT);
 
 -- ============================================================
--- PART 11: UTILITY FUNCTIONS
+-- PART 11: CRON EXECUTION LOG
+-- ============================================================
+
+DROP TABLE IF EXISTS public.cron_execution_log CASCADE;
+
+CREATE TABLE public.cron_execution_log (
+    id BIGSERIAL PRIMARY KEY,
+    cron_name VARCHAR(100) NOT NULL,
+    execution_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('success', 'error', 'partial')),
+
+    -- Métricas para generate-obligations
+    obligations_created INTEGER,
+    obligations_skipped INTEGER,
+    companies_processed INTEGER,
+
+    -- Métricas para check-notifications
+    notifications_created INTEGER,
+    obligations_checked INTEGER,
+
+    -- Detalles y errores
+    details JSONB,
+    error_message TEXT,
+    execution_duration_ms INTEGER,
+
+    -- Logs de consola capturados
+    console_logs JSONB DEFAULT '[]'::JSONB,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Índices para queries rápidas
+CREATE INDEX idx_cron_log_name ON public.cron_execution_log(cron_name);
+CREATE INDEX idx_cron_log_time ON public.cron_execution_log(execution_time DESC);
+CREATE INDEX idx_cron_log_status ON public.cron_execution_log(status);
+CREATE INDEX idx_cron_log_created ON public.cron_execution_log(created_at DESC);
+
+COMMENT ON TABLE public.cron_execution_log IS 'Logs de ejecución de todos los cron jobs para monitoreo y debugging';
+COMMENT ON COLUMN public.cron_execution_log.console_logs IS 'Array de objetos {level: "info"|"warn"|"error", message: string, timestamp: string}';
+
+-- ============================================================
+-- PART 12: UTILITY FUNCTIONS
 -- ============================================================
 
 -- Function: Generate Monthly Obligations
@@ -538,6 +581,8 @@ RETURNS TABLE (
 DECLARE
     v_config RECORD;
     v_due_date DATE;
+    v_period_year INTEGER;
+    v_period_month INTEGER;
     v_created_count INTEGER := 0;
     v_skipped_count INTEGER := 0;
     v_company_name TEXT;
@@ -564,26 +609,47 @@ BEGIN
           AND c.active = TRUE
           AND (p_company_id IS NULL OR moc.company_id = p_company_id)
     LOOP
+        -- Skip quarterly obligations in non-quarter months
         IF v_config.frequency = 'quarterly' AND p_month NOT IN (3, 6, 9, 12) THEN
             CONTINUE;
         END IF;
 
-        IF v_config.frequency = 'annual' AND p_month != 12 THEN
+        -- Annual obligations: Only create in January
+        IF v_config.frequency = 'annual' AND p_month != 1 THEN
             CONTINUE;
         END IF;
 
-        v_due_date := make_date(
-            p_year,
-            p_month,
-            LEAST(v_config.due_day, extract(day from date_trunc('month', make_date(p_year, p_month, 1)) + interval '1 month - 1 day')::INTEGER)
-        ) + interval '1 month';
+        -- Calculate period year/month based on frequency
+        IF v_config.frequency = 'annual' AND p_month = 1 THEN
+            -- January: Create obligation for previous year
+            v_period_year := p_year - 1;
+            v_period_month := 12;  -- December (fiscal year end)
+        ELSE
+            -- Monthly/Quarterly: Use current year/month
+            v_period_year := p_year;
+            v_period_month := p_month;
+        END IF;
 
+        -- Calculate due date based on frequency
+        IF v_config.frequency = 'annual' THEN
+            -- ISLR always due March 31st of current year
+            v_due_date := make_date(p_year, 3, 31);
+        ELSE
+            -- Monthly/Quarterly: Next month based on due_day
+            v_due_date := make_date(
+                p_year,
+                p_month,
+                LEAST(v_config.due_day, extract(day from date_trunc('month', make_date(p_year, p_month, 1)) + interval '1 month - 1 day')::INTEGER)
+            ) + interval '1 month';
+        END IF;
+
+        -- Check if obligation already exists for this period
         SELECT EXISTS(
             SELECT 1 FROM public.output_documents
             WHERE company_id = v_config.company_id
               AND document_type_id = v_config.document_type_id
-              AND period_year = p_year
-              AND period_month = p_month
+              AND period_year = v_period_year
+              AND period_month = v_period_month
               AND active = TRUE
         ) INTO v_obligation_exists;
 
@@ -592,6 +658,7 @@ BEGIN
             CONTINUE;
         END IF;
 
+        -- Create obligation
         INSERT INTO public.output_documents (
             company_id,
             document_type_id,
@@ -611,12 +678,12 @@ BEGIN
             NULL,
             format('Auto-generated %s obligation for %s %s',
                    v_config.frequency,
-                   to_char(make_date(p_year, p_month, 1), 'Month'),
-                   p_year),
+                   to_char(make_date(v_period_year, v_period_month, 1), 'Month'),
+                   v_period_year),
             v_due_date,
             ARRAY[]::BIGINT[],
-            p_year,
-            p_month,
+            v_period_year,
+            v_period_month,
             'pending',
             TRUE
         );
@@ -786,8 +853,186 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function: Check and Notify Pending Obligations (for Vercel Cron)
+CREATE OR REPLACE FUNCTION public.fn_check_and_notify_pending_obligations()
+RETURNS TABLE(
+    notifications_created INTEGER,
+    obligations_checked INTEGER,
+    details JSONB
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_obligation RECORD;
+    v_days_until_due INTEGER;
+    v_notification_type VARCHAR(50);
+    v_notification_exists BOOLEAN;
+    v_notification_title VARCHAR(255);
+    v_notification_message TEXT;
+    v_notifications_created INTEGER := 0;
+    v_obligations_checked INTEGER := 0;
+    v_details JSONB := '[]'::JSONB;
+    v_detail JSONB;
+BEGIN
+    -- Loop through all pending obligations
+    FOR v_obligation IN
+        SELECT
+            od.id,
+            od.due_date,
+            od.document_type_id,
+            od.period_year,
+            od.period_month,
+            c.id as company_id,
+            c.name as company_name,
+            c.assigned_to,
+            c.assigned_accountant,
+            c.assigned_client,
+            dt.name as document_name
+        FROM public.output_documents od
+        JOIN public.companies c ON od.company_id = c.id
+        JOIN public.document_types dt ON od.document_type_id = dt.id
+        WHERE od.status = 'pending'
+          AND od.active = TRUE
+          AND c.active = TRUE
+          AND od.due_date >= CURRENT_DATE  -- Only future obligations
+        ORDER BY od.due_date ASC
+    LOOP
+        v_obligations_checked := v_obligations_checked + 1;
+
+        -- Calculate days until due
+        v_days_until_due := v_obligation.due_date - CURRENT_DATE;
+
+        -- Determine notification type based on days remaining
+        v_notification_type := NULL;
+
+        IF v_days_until_due >= 14 AND v_days_until_due <= 16 THEN
+            -- 15 days before (with 1 day tolerance)
+            v_notification_type := 'reminder_15_days';
+            v_notification_title := '⏰ Recordatorio: 15 días para vencimiento';
+            v_notification_message := format(
+                'La obligación "%s" de %s vence en %s días (%s)',
+                v_obligation.document_name,
+                v_obligation.company_name,
+                v_days_until_due,
+                to_char(v_obligation.due_date, 'DD/MM/YYYY')
+            );
+
+        ELSIF v_days_until_due >= 6 AND v_days_until_due <= 8 THEN
+            -- 7 days before (with 1 day tolerance)
+            v_notification_type := 'reminder_7_days';
+            v_notification_title := '⚠️ Recordatorio: 1 semana para vencimiento';
+            v_notification_message := format(
+                'La obligación "%s" de %s vence en %s días (%s)',
+                v_obligation.document_name,
+                v_obligation.company_name,
+                v_days_until_due,
+                to_char(v_obligation.due_date, 'DD/MM/YYYY')
+            );
+
+        ELSIF v_days_until_due <= 3 AND v_days_until_due >= 0 THEN
+            -- Last 3 days - create notification each time (3x daily)
+            v_notification_type := 'reminder_urgent';
+            v_notification_title := '🚨 URGENTE: ' || v_days_until_due || ' día(s) para vencimiento';
+            v_notification_message := format(
+                '¡ATENCIÓN! La obligación "%s" de %s vence en %s día(s) (%s)',
+                v_obligation.document_name,
+                v_obligation.company_name,
+                v_days_until_due,
+                to_char(v_obligation.due_date, 'DD/MM/YYYY')
+            );
+        END IF;
+
+        -- If we determined a notification type, check if we should create it
+        IF v_notification_type IS NOT NULL THEN
+
+            -- For urgent notifications (last 3 days), always create (3x daily)
+            -- For others, check if notification already exists for this obligation+type
+            IF v_notification_type = 'reminder_urgent' THEN
+                v_notification_exists := FALSE;  -- Always create for urgent
+            ELSE
+                -- Check if notification already exists
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM public.notifications
+                    WHERE obligation_id = v_obligation.id
+                      AND notification_type = v_notification_type
+                      AND active = TRUE
+                ) INTO v_notification_exists;
+            END IF;
+
+            -- Create notification if it doesn't exist (or is urgent)
+            IF NOT v_notification_exists THEN
+
+                -- Create notification for assigned_to (main responsible)
+                IF v_obligation.assigned_to IS NOT NULL THEN
+                    INSERT INTO public.notifications (
+                        user_id,
+                        title,
+                        message,
+                        obligation_id,
+                        company_id,
+                        notification_type,
+                        is_read
+                    ) VALUES (
+                        v_obligation.assigned_to,
+                        v_notification_title,
+                        v_notification_message,
+                        v_obligation.id,
+                        v_obligation.company_id,
+                        v_notification_type,
+                        FALSE
+                    );
+                    v_notifications_created := v_notifications_created + 1;
+                END IF;
+
+                -- Also notify accountant if different from assigned_to
+                IF v_obligation.assigned_accountant IS NOT NULL
+                   AND v_obligation.assigned_accountant != v_obligation.assigned_to THEN
+                    INSERT INTO public.notifications (
+                        user_id,
+                        title,
+                        message,
+                        obligation_id,
+                        company_id,
+                        notification_type,
+                        is_read
+                    ) VALUES (
+                        v_obligation.assigned_accountant,
+                        v_notification_title,
+                        v_notification_message,
+                        v_obligation.id,
+                        v_obligation.company_id,
+                        v_notification_type,
+                        FALSE
+                    );
+                    v_notifications_created := v_notifications_created + 1;
+                END IF;
+
+                -- Add to details
+                v_detail := jsonb_build_object(
+                    'obligation_id', v_obligation.id,
+                    'company_name', v_obligation.company_name,
+                    'document_name', v_obligation.document_name,
+                    'days_until_due', v_days_until_due,
+                    'due_date', v_obligation.due_date,
+                    'notification_type', v_notification_type
+                );
+                v_details := v_details || v_detail;
+            END IF;
+        END IF;
+
+    END LOOP;
+
+    -- Return summary
+    RETURN QUERY SELECT
+        v_notifications_created,
+        v_obligations_checked,
+        v_details;
+END;
+$$;
+
 -- ============================================================
--- PART 12: NOTIFICATION TRIGGERS
+-- PART 13: NOTIFICATION TRIGGERS
 -- ============================================================
 
 -- Trigger for obligation status changes
@@ -805,7 +1050,7 @@ CREATE TRIGGER trg_notify_new_obligation
     EXECUTE FUNCTION public.fn_notify_new_obligation();
 
 -- ============================================================
--- PART 13: DATABASE VIEWS
+-- PART 14: DATABASE VIEWS
 -- ============================================================
 
 -- View: User Profiles
@@ -1030,6 +1275,24 @@ LEFT JOIN public.document_types dt ON od.document_type_id = dt.id
 WHERE n.active = TRUE
 ORDER BY n.created_at DESC;
 
+-- View: Cron Jobs Status
+DROP VIEW IF EXISTS public.v_cron_status CASCADE;
+CREATE VIEW public.v_cron_status AS
+SELECT
+    cron_name,
+    MAX(execution_time) as last_execution,
+    MAX(CASE WHEN execution_time::DATE = CURRENT_DATE THEN execution_time END) as last_execution_today,
+    COUNT(*) FILTER (WHERE execution_time::DATE = CURRENT_DATE) as executions_today,
+    COUNT(*) FILTER (WHERE status = 'error' AND execution_time::DATE = CURRENT_DATE) as errors_today,
+    SUM(obligations_created) FILTER (WHERE execution_time::DATE = CURRENT_DATE) as obligations_created_today,
+    SUM(notifications_created) FILTER (WHERE execution_time::DATE = CURRENT_DATE) as notifications_created_today,
+    status as last_status,
+    execution_duration_ms as last_duration_ms
+FROM public.cron_execution_log
+GROUP BY cron_name, status, execution_duration_ms;
+
+COMMENT ON VIEW public.v_cron_status IS 'Vista resumen del estado actual de todos los cron jobs';
+
 -- ============================================================
 -- SETUP COMPLETE
 -- ============================================================
@@ -1042,10 +1305,10 @@ BEGIN
     RAISE NOTICE '========================================';
     RAISE NOTICE '';
     RAISE NOTICE 'Summary:';
-    RAISE NOTICE '  - 10 tables created';
+    RAISE NOTICE '  - 11 tables created';
     RAISE NOTICE '  - 10 audit triggers attached';
-    RAISE NOTICE '  - 5 utility functions created';
-    RAISE NOTICE '  - 7 views created';
+    RAISE NOTICE '  - 6 utility functions created';
+    RAISE NOTICE '  - 8 views created';
     RAISE NOTICE '  - 3 users populated';
     RAISE NOTICE '  - 3 companies populated';
     RAISE NOTICE '  - 101 document types populated';
@@ -1055,7 +1318,7 @@ BEGIN
     RAISE NOTICE '  users, companies, document_types,';
     RAISE NOTICE '  input_documents, output_documents, legal_documents,';
     RAISE NOTICE '  monthly_obligations_config, notifications,';
-    RAISE NOTICE '  output_required_inputs, audit_log';
+    RAISE NOTICE '  output_required_inputs, cron_execution_log, audit_log';
     RAISE NOTICE '';
     RAISE NOTICE 'Next Steps:';
     RAISE NOTICE '  1. Generate obligations: SELECT * FROM fn_generate_monthly_obligations();';

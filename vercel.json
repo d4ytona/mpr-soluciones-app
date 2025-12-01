@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/generate-obligations",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/check-notifications",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/check-notifications",
+      "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/check-notifications",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}

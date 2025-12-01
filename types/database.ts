@@ -1,7 +1,8 @@
 // Database types based on Supabase schema
 
 export type UserRole = 'client' | 'accountant' | 'boss' | 'admin';
-export type IdType = 'v' | 'e' | 'p';
+export type IdType = 'v' | 'e' | 'p'; // Personas naturales: Venezolano, Extranjero, Pasaporte
+export type CompanyIdType = 'j' | 'g'; // Personas jurídicas: Jurídico, Gobierno
 
 export interface User {
   id: number;
@@ -25,6 +26,7 @@ export interface Company {
   id: number;
   name: string;
   tax_id: string;
+  id_type: CompanyIdType;
   address: string | null;
   phone: string | null;
   email: string | null;
