@@ -4,6 +4,13 @@
 
 Documentar y monitorear **cada ejecución** de los cron jobs en Supabase para tener visibilidad completa y permanente del sistema.
 
+## ⚙️ Plataforma: GitHub Actions
+
+Los cron jobs se ejecutan mediante **GitHub Actions** (no Vercel Cron) para evitar límites del plan gratuito.
+
+**Cron activo:**
+- `generate-obligations`: Diario a las 00:00 Venezuela (04:00 UTC)
+
 ---
 
 ## 📊 ¿Qué se Registra?
@@ -187,7 +194,7 @@ scripts/database/CRON_MONITORING_QUERIES.sql
 
 ### Implementación en los Endpoints
 
-Ambos endpoints (`generate-obligations` y `check-notifications`) guardan automáticamente cada ejecución:
+El endpoint `generate-obligations` guarda automáticamente cada ejecución en la base de datos:
 
 ```typescript
 export async function GET(request: Request) {
@@ -328,7 +335,7 @@ WHERE cel.id IS NULL
 ORDER BY ed.day DESC;
 ```
 
-**Si hay días sin ejecución → Problema con Vercel Cron**
+**Si hay días sin ejecución → Problema con GitHub Actions o API endpoint**
 
 ### Tasa de éxito
 
@@ -404,12 +411,13 @@ Después del deploy, verifica:
 ```
 [ ] 1. Tabla cron_execution_log existe en Supabase
 [ ] 2. Vista v_cron_status existe
-[ ] 3. Los crons se ejecutan (ver Vercel Dashboard)
-[ ] 4. Se guardan logs en Supabase:
+[ ] 3. GitHub Actions workflow está configurado (.github/workflows/generate-obligations.yml)
+[ ] 4. CRON_SECRET configurado en GitHub Secrets
+[ ] 5. Se guardan logs en Supabase:
         SELECT COUNT(*) FROM cron_execution_log;
-[ ] 5. No hay errores recientes:
+[ ] 6. No hay errores recientes:
         SELECT * FROM cron_execution_log WHERE status = 'error';
-[ ] 6. Ambos crons ejecutaron hoy:
+[ ] 7. El cron ejecutó hoy:
         SELECT * FROM v_cron_status;
 ```
 
@@ -420,9 +428,9 @@ Después del deploy, verifica:
 - **Tabla:** `scripts/database/COMPLETE_SETUP.sql` (PART 11)
 - **Vista:** `scripts/database/COMPLETE_SETUP.sql` (PART 14)
 - **Queries:** `scripts/database/CRON_MONITORING_QUERIES.sql`
-- **Endpoint 1:** `app/api/cron/generate-obligations+api.ts`
-- **Endpoint 2:** `app/api/cron/check-notifications+api.ts`
+- **Endpoint:** `app/api/cron/generate-obligations+api.ts`
+- **GitHub Workflow:** `.github/workflows/generate-obligations.yml`
 
 ---
 
-**Última actualización:** 2025-11-30
+**Última actualización:** 2025-12-01 - Migrado de Vercel Cron a GitHub Actions

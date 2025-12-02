@@ -1,0 +1,35 @@
+name: Generate Monthly Obligations
+
+on:
+  schedule:
+    # Diario a las 00:00 Venezuela (04:00 UTC)
+    - cron: '0 4 * * *'
+
+  # Permite ejecución manual desde GitHub UI
+  workflow_dispatch:
+
+jobs:
+  generate-obligations:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate obligations via API
+        run: |
+          response=$(curl -X GET https://YOUR_VERCEL_URL.vercel.app/api/cron/generate-obligations \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -w "\n%{http_code}" \
+            -s -S)
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response body: $body"
+          echo "HTTP Status: $http_code"
+
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: API returned status $http_code"
+            exit 1
+          fi
+
+          echo "✅ Obligations generated successfully"
