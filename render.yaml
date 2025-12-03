@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: mpr-soluciones-api
+    runtime: node
+    rootDir: api-server
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: EXPO_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CRON_SECRET
+        sync: false
