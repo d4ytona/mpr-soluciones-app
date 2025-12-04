@@ -16,10 +16,7 @@ CREATE TABLE public.output_documents (
     notes TEXT,                                                             -- Optional accountant notes
     due_date DATE,                                                          -- Due date for deliverable (required for obligations)
 
-    -- Document relationship tracking (Enfoque A: Array de IDs)
-    source_input_document_ids BIGINT[],                                     -- Array of input_document IDs used to create this output
-
-    -- Monthly obligation management
+    -- Obligation management
     period_year INTEGER,                                                    -- Year of the obligation (e.g., 2025)
     period_month INTEGER CHECK (period_month BETWEEN 1 AND 12),            -- Month of the obligation (1-12)
     obligation_status VARCHAR(50) DEFAULT 'pending'                         -- Status: 'pending', 'in_progress', 'completed', 'overdue'

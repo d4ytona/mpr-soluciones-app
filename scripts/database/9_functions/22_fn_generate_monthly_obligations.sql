@@ -38,7 +38,7 @@ BEGIN
             moc.due_day,
             c.name as company_name,
             dt.name as document_type_name
-        FROM public.monthly_obligations_config moc
+        FROM public.obligations_config moc
         JOIN public.companies c ON moc.company_id = c.id
         JOIN public.document_types dt ON moc.document_type_id = dt.id
         WHERE moc.active = TRUE
@@ -88,7 +88,6 @@ BEGIN
             file_url,
             notes,
             due_date,
-            source_input_document_ids,
             period_year,
             period_month,
             obligation_status,
@@ -103,7 +102,6 @@ BEGIN
                    to_char(make_date(p_year, p_month, 1), 'Month'),
                    p_year),
             v_due_date,
-            ARRAY[]::BIGINT[],  -- Empty array initially
             p_year,
             p_month,
             'pending',

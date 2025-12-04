@@ -1,12 +1,12 @@
--- 20_create_monthly_obligations_config.sql
+-- 20_create_obligations_config.sql
 -- ============================================================
--- Description: Configuration table for automatic monthly obligation generation.
+-- Description: Configuration table for automatic obligation generation.
 --              Defines which obligations each company must fulfill and their frequency.
 -- ============================================================
 
-DROP TABLE IF EXISTS public.monthly_obligations_config CASCADE;
+DROP TABLE IF EXISTS public.obligations_config CASCADE;
 
-CREATE TABLE public.monthly_obligations_config (
+CREATE TABLE public.obligations_config (
     id BIGSERIAL PRIMARY KEY,                                               -- Unique identifier
     company_id BIGINT NOT NULL REFERENCES public.companies(id),             -- FK to company
     document_type_id BIGINT NOT NULL REFERENCES public.document_types(id),  -- FK to document type (obligation)
@@ -31,11 +31,11 @@ CREATE TABLE public.monthly_obligations_config (
 );
 
 -- Index for fast lookups by company
-CREATE INDEX idx_monthly_obligations_config_company_id
-ON public.monthly_obligations_config(company_id)
+CREATE INDEX idx_obligations_config_company_id
+ON public.obligations_config(company_id)
 WHERE active = TRUE AND enabled = TRUE;
 
 -- Index for fast lookups by frequency
-CREATE INDEX idx_monthly_obligations_config_frequency
-ON public.monthly_obligations_config(frequency)
+CREATE INDEX idx_obligations_config_frequency
+ON public.obligations_config(frequency)
 WHERE active = TRUE AND enabled = TRUE;
